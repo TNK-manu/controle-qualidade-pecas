@@ -1,7 +1,24 @@
 import sqlite3
 import random
+from colorama import init, Fore, Style
+
+init(autoreset=True)
 
 NOME_BANCO = "controle_qualidade.db"
+
+# PADRAO DE CORES
+def mensagem_sucesso(texto):
+    print(Fore.GREEN + texto + Style.RESET_ALL)
+
+def mensagem_erro(texto):
+    print(Fore.RED + texto + Style.RESET_ALL)
+
+def mensagem_alerta(texto):
+    print(Fore.YELLOW + texto + Style.RESET_ALL)
+
+def mensagem_info(texto):
+    print(Fore.CYAN + texto + Style.RESET_ALL)
+
 
 # BANCO DE DADOS
 def conectar_banco():
@@ -33,6 +50,7 @@ def criar_tabelas():
 
     conexao.commit()
     conexao.close()
+
 
 # AVALIACAO
 def avaliar_peca(peso, cor, comprimento):
@@ -82,7 +100,6 @@ def obter_caixa_atual():
         return resultado[0]
     return 1
 
-
 def contar_pecas_na_caixa(numero_caixa):
     conexao = conectar_banco()
     cursor = conexao.cursor()
@@ -96,7 +113,6 @@ def contar_pecas_na_caixa(numero_caixa):
     quantidade = cursor.fetchone()[0]
     conexao.close()
     return quantidade
-
 
 def fechar_caixa(numero_caixa):
     quantidade = contar_pecas_na_caixa(numero_caixa)
@@ -113,8 +129,7 @@ def fechar_caixa(numero_caixa):
         conexao.commit()
         conexao.close()
 
-        print(f"\nCaixa {numero_caixa} fechada com 10 peças aprovadas.")
-
+        mensagem_info(f"\nCaixa {numero_caixa} fechada com 10 peças aprovadas.")
 
 def armazenar_em_caixa(id_peca):
     conexao = conectar_banco()
@@ -136,6 +151,25 @@ def armazenar_em_caixa(id_peca):
     conexao.close()
 
     fechar_caixa(numero_caixa)
+
+def caixa_esta_fechada(numero_caixa):
+    if numero_caixa is None:
+        return False
+
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+
+    cursor.execute("""
+        SELECT 1
+        FROM caixas
+        WHERE numero_caixa = ?
+        LIMIT 1
+    """, (numero_caixa,))
+
+    resultado = cursor.fetchone()
+    conexao.close()
+
+    return resultado is not None
 
 
 # CADASTRO DE PECAS
@@ -162,17 +196,18 @@ def cadastrar_peca():
         if situacao == "Aprovada":
             armazenar_em_caixa(id_peca)
 
-        print("\nPeça cadastrada com sucesso.")
-        print(f"Situação: {situacao}")
-        if motivo:
-            print(f"Motivo: {motivo}")
+        mensagem_sucesso("\nPeça cadastrada com sucesso.")
+        if situacao == "Aprovada":
+            mensagem_sucesso(f"Situação: {situacao}")
+        else:
+            mensagem_erro(f"Situação: {situacao}")
+            mensagem_alerta(f"Motivo: {motivo}")
 
     except ValueError:
-        print("\nErro: digite valores numéricos válidos para peso e comprimento.")
-
+        mensagem_erro("\nErro: digite valores numéricos válidos para peso e comprimento.")
 
 def cadastrar_pecas_automaticas():
-    print("\nGerando 20 peças automáticas...\n")
+    mensagem_info("\nGerando 20 peças automáticas...\n")
 
     cores_possiveis = ["azul", "verde", "vermelho", "amarelo", "preto"]
 
@@ -198,10 +233,15 @@ def cadastrar_pecas_automaticas():
         if situacao == "Aprovada":
             armazenar_em_caixa(id_peca)
 
-        print(
+        texto_peca = (
             f"Peça {indice + 1}: "
             f"Peso={peso}g | Cor={cor} | Comprimento={comprimento}cm | Situação={situacao}"
         )
+
+        if situacao == "Aprovada":
+            print(Fore.GREEN + texto_peca + Style.RESET_ALL)
+        else:
+            print(Fore.RED + texto_peca + Style.RESET_ALL)
 
 
 # LISTAGEM
@@ -235,7 +275,7 @@ def listar_pecas():
             ORDER BY id
         """)
     else:
-        print("\nOpção inválida.")
+        mensagem_erro("\nOpção inválida.")
         conexao.close()
         return
 
@@ -243,12 +283,12 @@ def listar_pecas():
     conexao.close()
 
     if not pecas:
-        print("\nNenhuma peça encontrada.")
+        mensagem_alerta("\nNenhuma peça encontrada.")
         return
 
     print("\n===== LISTA DE PEÇAS =====")
     for peca in pecas:
-        print(f"""
+        texto = f"""
 ID: {peca[0]}
 Peso: {peca[1]} g
 Cor: {peca[2]}
@@ -257,8 +297,11 @@ Situação: {peca[4]}
 Motivo: {peca[5] if peca[5] else '-'}
 Caixa: {peca[6] if peca[6] else '-'}
 -----------------------------
-""")
-
+"""
+        if peca[4] == "Aprovada":
+            print(Fore.GREEN + texto + Style.RESET_ALL)
+        else:
+            print(Fore.RED + texto + Style.RESET_ALL)
 
 def listar_caixas():
     conexao = conectar_banco()
@@ -274,12 +317,12 @@ def listar_caixas():
     conexao.close()
 
     if not caixas:
-        print("\nNenhuma caixa fechada encontrada.")
+        mensagem_alerta("\nNenhuma caixa fechada encontrada.")
         return
 
-    print("\n===== CAIXAS FECHADAS =====")
+    print(Fore.CYAN + "\n===== CAIXAS FECHADAS =====" + Style.RESET_ALL)
     for caixa in caixas:
-        print(f"Caixa {caixa[0]} - Quantidade de peças: {caixa[1]}")
+        print(Fore.CYAN + f"Caixa {caixa[0]} - Quantidade de peças: {caixa[1]}" + Style.RESET_ALL)
 
 def mostrar_caixa_aberta_atual():
     numero_caixa_atual = obter_caixa_atual()
@@ -291,10 +334,11 @@ def mostrar_caixa_aberta_atual():
 
     faltam = 10 - quantidade_atual
 
-    print("\n===== CAIXA ABERTA ATUAL =====")
+    print(Fore.CYAN + "\n===== CAIXA ABERTA ATUAL =====" + Style.RESET_ALL)
     print(f"Número da caixa em andamento: {numero_caixa_atual}")
     print(f"Peças aprovadas armazenadas: {quantidade_atual}")
     print(f"Faltam para fechar a caixa: {faltam}")
+
 
 # REMOCAO
 def remover_peca():
@@ -308,9 +352,11 @@ def remover_peca():
         peca = cursor.fetchone()
 
         if not peca:
-            print("\nPeça não encontrada.")
+            mensagem_erro("\nPeça não encontrada.")
             conexao.close()
             return
+
+        numero_caixa = peca[6]
 
         print("\n===== DADOS DA PEÇA =====")
         print(f"ID: {peca[0]}")
@@ -319,21 +365,26 @@ def remover_peca():
         print(f"Comprimento: {peca[3]} cm")
         print(f"Situação: {peca[4]}")
         print(f"Motivo: {peca[5] if peca[5] else '-'}")
-        print(f"Caixa: {peca[6] if peca[6] else '-'}")
+        print(f"Caixa: {numero_caixa if numero_caixa else '-'}")
+
+        if caixa_esta_fechada(numero_caixa):
+            mensagem_erro("\nNão é permitido excluir esta peça, pois a caixa já foi fechada.")
+            conexao.close()
+            return
 
         confirmacao = input("\nTem certeza que deseja remover esta peça? (s/n): ").strip().lower()
 
         if confirmacao == "s":
             cursor.execute("DELETE FROM pecas WHERE id = ?", (id_peca,))
             conexao.commit()
-            print("\nPeça removida com sucesso.")
+            mensagem_sucesso("\nPeça removida com sucesso.")
         else:
-            print("\nRemoção cancelada.")
+            mensagem_alerta("\nRemoção cancelada.")
 
         conexao.close()
 
     except ValueError:
-        print("\nErro: digite um ID válido.")
+        mensagem_erro("\nErro: digite um ID válido.")
 
 
 # RELATORIO
@@ -363,25 +414,25 @@ def gerar_relatorio():
 
     conexao.close()
 
-    print("\n===== RELATÓRIO FINAL =====")
+    print(Fore.CYAN + "\n===== RELATÓRIO FINAL =====" + Style.RESET_ALL)
     print(f"Total de peças cadastradas: {total_pecas}")
-    print(f"Total de peças aprovadas: {total_aprovadas}")
-    print(f"Total de peças reprovadas: {total_reprovadas}")
-    print(f"Total de caixas fechadas: {total_caixas_fechadas}")
+    print(Fore.GREEN + f"Total de peças aprovadas: {total_aprovadas}" + Style.RESET_ALL)
+    print(Fore.RED + f"Total de peças reprovadas: {total_reprovadas}" + Style.RESET_ALL)
+    print(Fore.CYAN + f"Total de caixas fechadas: {total_caixas_fechadas}" + Style.RESET_ALL)
 
     print("\nMotivos de reprovação:")
     if motivos_reprovacao:
         for motivo, quantidade in motivos_reprovacao:
-            print("\n-----------------------------")
-            print(f"Quantidade: {quantidade}")
+            print(Fore.YELLOW + "\n-----------------------------" + Style.RESET_ALL)
+            print(Fore.YELLOW + f"Quantidade: {quantidade}" + Style.RESET_ALL)
             print("Motivos:")
 
             lista_motivos = motivo.split(" | ")
 
             for m in lista_motivos:
-                print(f"- {m}")
+                print(Fore.RED + f"- {m}" + Style.RESET_ALL)
     else:
-        print("- Nenhuma peça reprovada.")
+        mensagem_sucesso("- Nenhuma peça reprovada.")
 
 
 # LIMPEZA DO BANCO
@@ -402,15 +453,15 @@ def limpar_banco_dados():
         conexao.commit()
         conexao.close()
 
-        print("\nBanco de dados limpo com sucesso. Novo lote iniciado.")
+        mensagem_sucesso("\nBanco de dados limpo com sucesso. Novo lote iniciado.")
     else:
-        print("\nOperação cancelada.")
+        mensagem_alerta("\nOperação cancelada.")
 
 
 # MENU PRINCIPAL
 def menu():
     while True:
-        print("\n========== MENU ==========")
+        print(Fore.CYAN + "\n========== MENU ==========" + Style.RESET_ALL)
         print("1. Cadastrar nova peça manualmente")
         print("2. Registrar 20 peças automáticas")
         print("3. Listar peças")
@@ -440,10 +491,10 @@ def menu():
         elif opcao == "8":
             limpar_banco_dados()
         elif opcao == "0":
-            print("\nEncerrando o sistema...")
+            mensagem_info("\nEncerrando o sistema...")
             break
         else:
-            print("\nOpção inválida. Tente novamente.")
+            mensagem_erro("\nOpção inválida. Tente novamente.")
 
 
 # EXECUCAO PRINCIPAL
